@@ -1,14 +1,14 @@
-# k8s-scw-baremetal
+# terraform-k8s-scaleway
 
-Kubernetes Terraform installer for Scaleway bare-metal ARM and AMD64
+Kubernetes Terraform installer for Scaleway cloud AMD64
 
 ### Initial setup
 
 Clone the repository and install the dependencies:
 
 ```bash
-$ git clone https://github.com/stefanprodan/k8s-scw-baremetal.git
-$ cd k8s-scw-baremetal
+$ git clone https://github.com/DLag/terraform-k8s-scaleway.git
+$ cd terraform-k8s-scaleway
 $ terraform init
 ```
 
@@ -120,9 +120,9 @@ $ kubectl --kubeconfig ./$(terraform output kubectl_config) \
 
 Now you can access the dashboard on your computer at `http://localhost:8888`.
 
-![Overview](https://github.com/stefanprodan/k8s-scw-baremetal/blob/master/screens/dash-overview.png)
+![Overview](https://github.com/DLag/terraform-k8s-scaleway/blob/master/screens/dash-overview.png)
 
-![Nodes](https://github.com/stefanprodan/k8s-scw-baremetal/blob/master/screens/dash-nodes.png)
+![Nodes](https://github.com/DLag/terraform-k8s-scaleway//blob/master/screens/dash-nodes.png)
 
 ### Expose services outside the cluster
 
