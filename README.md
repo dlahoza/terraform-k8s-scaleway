@@ -34,6 +34,13 @@ $ export SCALEWAY_ORGANIZATION="<ORGANIZATION_ID>"
 $ export SCALEWAY_TOKEN="<ACCESS-TOKEN>"
 ```
 
+Or if you have already configured scw utility just run this:
+
+```bash
+export SCALEWAY_ORGANIZATION="$(cut -d'"' -f4 < ~/.scwrc)"
+export SCALEWAY_TOKEN="$(cut -d'"' -f8 < ~/.scwrc)"
+```
+
 To configure your cluster, you'll need to have `jq` installed on your computer.
 
 ### Usage
@@ -44,13 +51,16 @@ Create an AMD64 bare-metal Kubernetes cluster with one master and a node:
 $ terraform workspace new amd64
 
 $ terraform apply \
- -var region=par1 \
+ -var region=ams1 \
  -var arch=x86_64 \
- -var server_type=C2S \
+ -var server_type=START1-S \
  -var nodes=1 \
- -var server_type_node=C2S \
- -var weave_passwd=ChangeMe \
- -var docker_version=17.12.0~ce-0~ubuntu
+ -var server_type_node=START1-S \
+ -var weave_passwd=some_weave_pass \
+ -var traefik_dashboard_domain=traefik.example.com \
+ -var traefik_acme_email=admin@example.com \
+ -var grafana_domain=grafana.example.com
+ -auto-approve
 ```
 
 This will do the following:
@@ -62,9 +72,10 @@ This will do the following:
 * downloads the kubectl admin config file on your local machine and replaces the private IP with the public one
 * creates a Kubernetes secret with the Weave Net password
 * installs Weave Net with encrypted overlay
-* installs cluster add-ons (Kubernetes dashboard, metrics server and Heapster)
 * starts the nodes in parallel and installs Docker CE and kubeadm
 * joins the nodes in the cluster using the kubeadm token obtained from the master
+* installs cluster add-ons (Kubernetes dashboard)
+* installs Traefik Ingress and Prometheus
 
 Scale up by increasing the number of nodes:
 
@@ -79,21 +90,6 @@ Tear down the whole infrastructure with:
 terraform destroy -force
 ```
 
-Create an ARMv7 bare-metal Kubernetes cluster with one master and two nodes:
-
-```bash
-$ terraform workspace new arm
-
-$ terraform apply \
- -var region=par1 \
- -var arch=arm \
- -var server_type=C1 \
- -var nodes=1 \
- -var server_type_node=C1 \
- -var weave_passwd=ChangeMe \
- -var docker_version=17.03.0~ce-0~ubuntu-xenial
-```
-
 ### Remote control
 
 After applying the Terraform plan you'll see several output variables like the master public IP,
@@ -101,11 +97,11 @@ the kubeadmn join command and the current workspace admin config.
 
 In order to run `kubectl` commands against the Scaleway cluster you can use the `kubectl_config` output variable:
 
-Check if Heapster works:
+Check if Kubernetes works
 
 ```bash
 $ kubectl --kubeconfig ./$(terraform output kubectl_config) \
-  top nodes
+  get pods
 
 NAME           CPU(cores)   CPU%      MEMORY(bytes)   MEMORY%
 arm-master-1   655m         16%       873Mi           45%
@@ -196,150 +192,4 @@ environment:
   PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 externalIP:
   IPv4: 163.172.139.112
-```
-
-### Horizontal Pod Autoscaling
-
-Starting from Kubernetes 1.9 `kube-controller-manager` is configured by default with
-`horizontal-pod-autoscaler-use-rest-clients`.
-In order to use HPA we need to install the metrics server to enable the new metrics API used by HPA v2.
-Both Heapster and the metrics server have been deployed from Terraform
-when the master node was provisioned.
-
-The metric server collects resource usage data from each node using Kubelet Summary API.
-Check if the metrics server is running:
-
-```bash
-$ kubectl --kubeconfig ./$(terraform output kubectl_config) \
- get --raw "/apis/metrics.k8s.io/v1beta1/nodes" | jq
-```
-
-```json
-{
-  "kind": "NodeMetricsList",
-  "apiVersion": "metrics.k8s.io/v1beta1",
-  "metadata": {
-    "selfLink": "/apis/metrics.k8s.io/v1beta1/nodes"
-  },
-  "items": [
-    {
-      "metadata": {
-        "name": "arm-master-1",
-        "selfLink": "/apis/metrics.k8s.io/v1beta1/nodes/arm-master-1",
-        "creationTimestamp": "2018-01-08T15:17:09Z"
-      },
-      "timestamp": "2018-01-08T15:17:00Z",
-      "window": "1m0s",
-      "usage": {
-        "cpu": "384m",
-        "memory": "935792Ki"
-      }
-    },
-    {
-      "metadata": {
-        "name": "arm-node-1",
-        "selfLink": "/apis/metrics.k8s.io/v1beta1/nodes/arm-node-1",
-        "creationTimestamp": "2018-01-08T15:17:09Z"
-      },
-      "timestamp": "2018-01-08T15:17:00Z",
-      "window": "1m0s",
-      "usage": {
-        "cpu": "130m",
-        "memory": "649020Ki"
-      }
-    },
-    {
-      "metadata": {
-        "name": "arm-node-2",
-        "selfLink": "/apis/metrics.k8s.io/v1beta1/nodes/arm-node-2",
-        "creationTimestamp": "2018-01-08T15:17:09Z"
-      },
-      "timestamp": "2018-01-08T15:17:00Z",
-      "window": "1m0s",
-      "usage": {
-        "cpu": "120m",
-        "memory": "614180Ki"
-      }
-    }
-  ]
-}
-```
-
-Let's define a HPA that will maintain a minimum of two replicas and will scale up to ten
-if the CPU average is over 80% or if the memory goes over 200Mi.
-
-```yaml
-apiVersion: autoscaling/v2beta1
-kind: HorizontalPodAutoscaler
-metadata:
-  name: podinfo
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1beta1
-    kind: Deployment
-    name: podinfo
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      targetAverageUtilization: 80
-  - type: Resource
-    resource:
-      name: memory
-      targetAverageValue: 200Mi
-```
-
-Apply the podinfo HPA:
-
-```bash
-$ kubectl --kubeconfig ./$(terraform output kubectl_config) \
-  apply -f https://raw.githubusercontent.com/stefanprodan/k8s-podinfo/7a8506e60fca086572f16de57f87bf5430e2df48/deploy/podinfo-hpa.yaml
-
-horizontalpodautoscaler "podinfo" created
-```
-
-After a couple of seconds the HPA controller will contact the metrics server and will fetch the CPU
-and memory usage:
-
-```bash
-$ kubectl --kubeconfig ./$(terraform output kubectl_config) get hpa
-
-NAME      REFERENCE            TARGETS                      MINPODS   MAXPODS   REPLICAS   AGE
-podinfo   Deployment/podinfo   2826240 / 200Mi, 15% / 80%   2         10        2          5m
-```
-
-In order to increase the CPU usage we could run a load test with hey:
-
-```bash
-#install hey
-go get -u github.com/rakyll/hey
-
-#do 10K requests rate limited at 20 QPS
-hey -n 10000 -q 10 -c 5 http://$(terraform output k8s_master_public_ip):31190
-```
-
-You can monitor the autoscaler events with:
-
-```bash
-$ watch -n 5 kubectl --kubeconfig ./$(terraform output kubectl_config) describe hpa
-
-Events:
-  Type    Reason             Age   From                       Message
-  ----    ------             ----  ----                       -------
-  Normal  SuccessfulRescale  7m    horizontal-pod-autoscaler  New size: 4; reason: cpu resource utilization (percentage of request) above target
-  Normal  SuccessfulRescale  3m    horizontal-pod-autoscaler  New size: 8; reason: cpu resource utilization (percentage of request) above target
-```
-
-After the load tests finishes the autoscaler will remove replicas until the deployment reaches the initial replica count:
-
-```
-Events:
-  Type    Reason             Age   From                       Message
-  ----    ------             ----  ----                       -------
-  Normal  SuccessfulRescale  20m   horizontal-pod-autoscaler  New size: 4; reason: cpu resource utilization (percentage of request) above target
-  Normal  SuccessfulRescale  16m   horizontal-pod-autoscaler  New size: 8; reason: cpu resource utilization (percentage of request) above target
-  Normal  SuccessfulRescale  12m   horizontal-pod-autoscaler  New size: 10; reason: cpu resource utilization (percentage of request) above target
-  Normal  SuccessfulRescale  6m    horizontal-pod-autoscaler  New size: 2; reason: All metrics below target
 ```

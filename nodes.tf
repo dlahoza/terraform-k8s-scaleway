@@ -28,12 +28,21 @@ resource "scaleway_server" "k8s_node" {
     source      = "scripts/kubeadm-install.sh"
     destination = "/tmp/kubeadm-install.sh"
   }
+  provisioner "file" {
+    source      = "scripts/traefik-add-ip.sh"
+    destination = "/tmp/traefik-add-ip.sh"
+  }
+  provisioner "local-exec" {
+    command = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${scaleway_ip.k8s_master_ip.0.ip} \"cat /root/.kube/config\" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${self.public_ip} \"mkdir -p /root/.kube; cat > /root/.kube/config\"",
+  }
   provisioner "remote-exec" {
     inline = [
       "set -e",
       "chmod +x /tmp/docker-install.sh && /tmp/docker-install.sh ${var.docker_version}",
       "chmod +x /tmp/kubeadm-install.sh && /tmp/kubeadm-install.sh ${var.k8s_version}",
       "${data.external.kubeadm_join.result.command}",
+      "apt install -y jq",
+      "chmod +x /tmp/traefik-add-ip.sh && /tmp/traefik-add-ip.sh ${self.private_ip}",
     ]
   }
   provisioner "remote-exec" {

@@ -37,7 +37,11 @@ resource "scaleway_server" "k8s_master" {
       "mkdir -p $HOME/.kube && cp -i /etc/kubernetes/admin.conf $HOME/.kube/config",
       "kubectl create secret -n kube-system generic weave-passwd --from-literal=weave-passwd=${var.weave_passwd}",
       "kubectl apply -f \"https://cloud.weave.works/k8s/net?password-secret=weave-passwd&k8s-version=$(kubectl version | base64 | tr -d '\n')\"",
-      "chmod +x /tmp/monitoring-install.sh && /tmp/monitoring-install.sh ${var.arch}",
+      "kubectl taint nodes --all node-role.kubernetes.io/master-",
+      "chmod +x /tmp/helm-install.sh && /tmp/helm-install.sh",
+      "chmod +x /tmp/traefik-install.sh && /tmp/traefik-install.sh ${var.traefik_dashboard_domain} ${var.traefik_acme_email} ${self.private_ip}",
+      "chmod +x /tmp/monitoring-install.sh && /tmp/monitoring-install.sh ${var.arch} ${var.grafana_domain} ${var.grafana_password}",
+      "kubectl apply -f /tmp/traefik-sm.yaml",
     ]
   }
   provisioner "local-exec" {
