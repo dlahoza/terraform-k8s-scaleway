@@ -1,6 +1,6 @@
 provider "scaleway" {
   region  = "${var.region}"
-  version = "1.7.0"
+  version = "1.9.2"
 }
 
 provider "external" {

@@ -1,10 +1,10 @@
 variable "docker_version" {
-  default     = "17.12.1~ce-0~ubuntu"
-  description = "Use 17.12.1~ce-0~ubuntu for x86_64 and 17.03.0~ce-0~ubuntu-xenial for arm"
+  default     = "5:18.09.4~3-0~ubuntu-xenial"
+  description = "Use 5:18.09.4~3-0~ubuntu-xenial for x86_64 and 17.03.0~ce-0~ubuntu-xenial for arm"
 }
 
 variable "k8s_version" {
-  default = "stable-1.11"
+  default = "stable-1.14"
 }
 
 variable "traefik_dashboard_domain" {

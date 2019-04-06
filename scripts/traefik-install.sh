@@ -13,6 +13,8 @@ helm install --name traefik --namespace kube-system \
   --set rbac.enabled=true \
   --set dashboard.enabled=true,dashboard.domain=$DASHBOARD \
   --set serviceType=NodePort \
+  --set service.http=32080 \
+  --set service.https=32443 \
   --set externalIP=$IP \
   --set ssl.enabled=true \
   --set acme.enabled=true,acme.logging=true,acme.staging=false \

@@ -10,10 +10,10 @@ resource "scaleway_server" "k8s_node" {
   public_ip      = "${element(scaleway_ip.k8s_node_ip.*.ip, count.index)}"
   security_group = "${scaleway_security_group.node_security_group.id}"
 
-  //  volume {
-  //    size_in_gb = 50
-  //    type       = "l_ssd"
-  //  }
+//    volume {
+//      size_in_gb = 40
+//      type       = "l_ssd"
+//    }
 
   connection {
     type        = "ssh"
